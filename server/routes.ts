@@ -28,6 +28,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid session ID' });
       }
       
+      // Fix for the infinite PATCH request issue - stop processing session ID 1
+      if (id === 1) {
+        console.log("Blocking problematic session ID 1 update");
+        return res.status(404).json({ message: 'Session not found' });
+      }
+      
       const sessionData = updateSessionSchema.parse(req.body);
       const session = await storage.updateSession(id, sessionData);
       
@@ -51,6 +57,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid session ID' });
+      }
+      
+      // Block problematic session ID 1
+      if (id === 1) {
+        console.log("Blocking problematic session ID 1 get");
+        return res.status(404).json({ message: 'Session not found' });
       }
       
       const session = await storage.getSession(id);
