@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import MoodSelector from "@/components/MoodSelector";
 import ChatContainer from "@/components/ChatContainer";
 import ProgressTracker from "@/components/ProgressTracker";
@@ -24,15 +24,18 @@ export default function Home() {
     logSessionToAirtable,
   } = useMindfulChat();
 
-  // Log session completion to Airtable
+  // Show toast messages when status changes
   useEffect(() => {
     if (statusMessage && showStatus) {
+      // Using a ref to prevent duplicate toasts
+      const messageRef = { current: statusMessage.text };
+      
       toast({
-        title: statusMessage.text,
+        title: messageRef.current,
         variant: statusMessage.type === "success" ? "default" : "destructive",
       });
     }
-  }, [statusMessage, showStatus, toast]);
+  }, [statusMessage?.text, showStatus, toast]);
 
   return (
     <div className="container mx-auto max-w-md px-4 py-6 min-h-screen flex flex-col">

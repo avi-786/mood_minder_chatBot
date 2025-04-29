@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { type Mood } from "@shared/schema";
 import { createSession, updateSession } from "@/lib/airtable";
 import { StatusMessageType } from "@/components/StatusMessage";
@@ -14,9 +14,13 @@ export function useMindfulChat() {
   const [isSessionStarted, setIsSessionStarted] = useState(false);
   const [statusMessage, setStatusMessage] = useState<StatusMessageType | null>(null);
   const [showStatus, setShowStatus] = useState(false);
-
+  
   // Chat messages
   const [messages, setMessages] = useState<MessageType[]>([]);
+  
+  // Use refs to prevent infinite loop
+  const lastStepRef = useRef<number | null>(null);
+  const isMutatingRef = useRef(false);
 
   // Create session mutation
   const createSessionMutation = useMutation({
@@ -39,8 +43,10 @@ export function useMindfulChat() {
       updateSession(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      isMutatingRef.current = false;
     },
     onError: () => {
+      isMutatingRef.current = false;
       showStatusMessage(
         "Failed to update session record. Please try again.",
         "error"
@@ -63,19 +69,38 @@ export function useMindfulChat() {
     }, 3000);
   }, []);
 
-  // Load chat content when step changes
+  // Load messages when step or mood changes
   useEffect(() => {
     if (isSessionStarted && selectedMood && currentStep > 0) {
       const chatContent = getChatContent(selectedMood, currentStep);
       setMessages(chatContent);
+    }
+  }, [currentStep, selectedMood, isSessionStarted]);
+  
+  // Handle session updates separately to avoid excessive API calls
+  useEffect(() => {
+    // Only update if we have an active session, the step has changed, and we're not already mutating
+    if (
+      isSessionStarted && 
+      selectedMood && 
+      currentStep > 0 && 
+      sessionId && 
+      lastStepRef.current !== currentStep && 
+      !isMutatingRef.current
+    ) {
+      console.log(`Updating session ${sessionId} to step ${currentStep}`);
+      lastStepRef.current = currentStep;
+      isMutatingRef.current = true;
       
-      // Update session step in the backend
-      if (sessionId) {
+      // Add a small delay to avoid rapid consecutive updates
+      const timeoutId = setTimeout(() => {
         updateSessionMutation.mutate({
           id: sessionId,
           data: { step: currentStep }
         });
-      }
+      }, 300);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [currentStep, selectedMood, isSessionStarted, sessionId, updateSessionMutation]);
 
@@ -84,6 +109,7 @@ export function useMindfulChat() {
     setSelectedMood(mood);
     setCurrentStep(1);
     setIsSessionStarted(true);
+    lastStepRef.current = 1;
     
     // Create a new session in the backend
     createSessionMutation.mutate(mood);
@@ -110,11 +136,14 @@ export function useMindfulChat() {
     setIsSessionStarted(false);
     setMessages([]);
     setSessionId(null);
+    lastStepRef.current = null;
   }, []);
 
   // Complete the session
   const handleComplete = useCallback(() => {
-    if (sessionId) {
+    if (sessionId && !isMutatingRef.current) {
+      isMutatingRef.current = true;
+      
       updateSessionMutation.mutate({
         id: sessionId,
         data: { completed: true }
@@ -129,14 +158,16 @@ export function useMindfulChat() {
 
   // Log session to Airtable (used for testing)
   const logSessionToAirtable = useCallback(() => {
-    if (sessionId) {
+    if (sessionId && !isMutatingRef.current) {
+      isMutatingRef.current = true;
+      
       updateSessionMutation.mutate({
         id: sessionId,
         data: { completed: true }
       });
       
       showStatusMessage("Session recorded successfully", "success");
-    } else {
+    } else if (!sessionId) {
       showStatusMessage("No active session to record", "error");
     }
   }, [sessionId, showStatusMessage, updateSessionMutation]);

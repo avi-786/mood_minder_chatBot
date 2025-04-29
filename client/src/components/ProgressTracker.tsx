@@ -18,11 +18,7 @@ export default function ProgressTracker({ currentStep }: ProgressTrackerProps) {
             }`}
             initial={false}
             animate={{
-              scale: step === currentStep ? 1.2 : 1,
-              backgroundColor:
-                step <= currentStep && currentStep > 0
-                  ? "hsl(var(--primary))"
-                  : "hsl(var(--neutral-200))",
+              scale: step === currentStep ? 1.2 : 1
             }}
             transition={{ duration: 0.3 }}
           />
