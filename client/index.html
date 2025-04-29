@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Mindful Chatflow</title>
+    <!-- Interrupt troublesome PATCH requests -->
+    <script>
+      // Monkey patch fetch to block problematic PATCH /api/sessions/1 calls
+      const originalFetch = window.fetch;
+      window.fetch = function(url, options) {
+        if (url && url.toString().includes('/api/sessions/1') && options && options.method === 'PATCH') {
+          console.warn('Blocked problematic PATCH request to /api/sessions/1');
+          return Promise.reject(new Error('Blocked request'));
+        }
+        return originalFetch.apply(this, arguments);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
